@@ -96,8 +96,12 @@ struct record {
 	struct datarec total; /* defined in common_kern_user.h */
 };
 
+#define XDP_FIRST_ACTION  XDP_ABORTED
+#define XDP_LAST_ACTION   XDP_REDIRECT
+#define XDP_ACTION_COUNT  XDP_LAST_ACTION - XDP_FIRST_ACTION + 1
+
 struct stats_record {
-	struct record stats[1]; /* Assignment#2: Hint */
+	struct record stats[XDP_ACTION_COUNT]; /* Assignment#2: Hint */
 };
 
 static double calc_period(struct record *r, struct record *p)
@@ -123,13 +127,14 @@ static void stats_print(struct stats_record *stats_rec,
     double mbps; /* megabytes per sec */
 
 	/* Assignment#2: Print other XDP actions stats  */
-	{
+    for (__u32 act = XDP_FIRST_ACTION; act <= XDP_LAST_ACTION; act++) {
 		char *fmt = "%-12s %'11lld pkts (%'10.0f pps)"
 			" %'11lld Kbytes (%'6.0f Mbits/s)"
 			" period:%f\n";
-		const char *action = action2str(XDP_PASS);
-		rec  = &stats_rec->stats[0];
-		prev = &stats_prev->stats[0];
+		const char *action = action2str(act);
+        __u32 key = act - XDP_FIRST_ACTION;
+		rec  = &stats_rec->stats[key];
+		prev = &stats_prev->stats[key];
 
 		period = calc_period(rec, prev);
 		if (period == 0)
@@ -143,6 +148,7 @@ static void stats_print(struct stats_record *stats_rec,
 		printf(fmt, action, rec->total.rx_packets, pps,
                rec->total.rx_bytes / 1000, mbps, period);
 	}
+    printf("\n");
 }
 
 /* BPF_MAP_TYPE_ARRAY */
@@ -194,9 +200,10 @@ static void stats_collect(int map_fd, __u32 map_type,
 			  struct stats_record *stats_rec)
 {
 	/* Assignment#2: Collect other XDP actions stats  */
-	__u32 key = XDP_PASS;
-
-	map_collect(map_fd, map_type, key, &stats_rec->stats[0]);
+	for (__u32 key = XDP_FIRST_ACTION; key <= XDP_LAST_ACTION; key++) {
+        __u32 idx = key - XDP_FIRST_ACTION;
+	    map_collect(map_fd, map_type, key, &stats_rec->stats[idx]);
+    }
 }
 
 static void stats_poll(int map_fd, __u32 map_type, int interval)
