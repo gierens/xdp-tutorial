@@ -112,7 +112,7 @@ static __always_inline int parse_icmp6hdr(struct hdr_cursor *nh,
     nh->pos = icmp6h + 1;
     *icmp6hdr = icmp6h;
 
-    return icmp6h->icmp6_sequence;
+    return icmp6h->icmp6_type;
 }
 
 SEC("xdp_packet_parser")
