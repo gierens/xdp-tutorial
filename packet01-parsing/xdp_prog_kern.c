@@ -104,7 +104,7 @@ int  xdp_parser_func(struct xdp_md *ctx)
 
 	/* Assignment additions go below here */
     nh_type = parse_ip6hdr(&nh, data_end, &ip6h);
-    if (nh_type != bpf_htons(IPPROTO_ICMPV6)) {
+    if (nh_type != IPPROTO_ICMPV6) {
         goto out;
     }
 
