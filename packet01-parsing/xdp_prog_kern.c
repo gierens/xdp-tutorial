@@ -17,6 +17,15 @@ struct hdr_cursor {
 	void *pos;
 };
 
+/* VLAN tag header */
+struct vlan_hdr {
+    __be16  h_vlan_TCI;
+    __be16  h_vlan_encapsulated_proto;
+};
+
+/* Max VLAN depth */
+#define VLAN_MAX_DEPTH 2
+
 /* Packet parsing helpers.
  *
  * Each helper parses a packet header, including doing bounds checking, and
@@ -26,12 +35,22 @@ struct hdr_cursor {
  * (h_proto for Ethernet, nexthdr for IPv6), for ICMP it is the ICMP type field.
  * All return values are in host byte order.
  */
+
+static __always_inline int proto_is_vlan(__u16 h_proto)
+{
+    return !!(h_proto == bpf_htons(ETH_P_8021Q) ||
+              h_proto == bpf_htons(ETH_P_8021AD));
+}
+
 static __always_inline int parse_ethhdr(struct hdr_cursor *nh,
 					void *data_end,
 					struct ethhdr **ethhdr)
 {
 	struct ethhdr *eth = nh->pos;
 	int hdrsize = sizeof(*eth);
+    struct vlan_hdr *vlh;
+    __u16 h_proto;
+    int i;
 
 	/* Byte-count bounds check; check if current pointer + size of header
 	 * is after data_end.
@@ -41,8 +60,23 @@ static __always_inline int parse_ethhdr(struct hdr_cursor *nh,
 
 	nh->pos += hdrsize;
 	*ethhdr = eth;
+    vlh = nh->pos;
+    h_proto = eth->h_proto;
 
-	return eth->h_proto; /* network-byte-order */
+    # pragma unroll
+    for (i = 0; i < VLAN_MAX_DEPTH; i++){
+        if (!proto_is_vlan(h_proto))
+            break;
+
+        if ((void *) (vlh + 1) > data_end)
+            return -1;
+
+        h_proto = vlh->h_vlan_encapsulated_proto;
+        vlh++;
+    }
+
+    nh->pos = vlh;
+	return h_proto; /* network-byte-order */
 }
 
 /* Assignment 2: Implement and use this */
